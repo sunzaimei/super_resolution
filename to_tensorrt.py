@@ -4,13 +4,10 @@ import time
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.compiler.tensorrt import trt_convert as trt
-
 from experimental.sunkaixuan.super_resolution.dataset import DIV2K, DATASET_DIR
 from experimental.sunkaixuan.super_resolution.model.common import resolve, evaluate
+from model.common import SCALE, model_to_resume, saved_model_to_resume
 
-SCALE = 3
-model_to_resume = 'xlsr-16-x3_20210721-020726'
-saved_model_to_resume = '1626857315'
 valid_loader = DIV2K(scale=SCALE, downgrade='bicubic', subset='valid', mode='valid')
 
 
@@ -39,8 +36,7 @@ def speed_test(name, model, steps=100):
 
 
 def optimize(saved_model_dir, output_saved_model_dir):
-    # trt.TrtPrecisionMode.INT8
-    conversion_params = tf.experimental.tensorrt.ConversionParams(precision_mode='INT8', maximum_cached_engines=1,
+    conversion_params = tf.experimental.tensorrt.ConversionParams(precision_mode=trt.TrtPrecisionMode.INT8, maximum_cached_engines=1,
                                                                   is_dynamic_op=True, allow_build_at_runtime=True, use_calibration=True)
     converter = tf.experimental.tensorrt.Converter(saved_model_dir, conversion_params=conversion_params)
 
@@ -70,18 +66,15 @@ def convert_trt(saved_model_dir, output_saved_model_dir=''):
 
     return optimize(saved_model_dir, output_saved_model_dir)
 
-
-saved_model_dir = os.path.join(DATASET_DIR, f'weights/{model_to_resume}/saved_models/{saved_model_to_resume}')
-# optim_saved_model_dir = os.path.join(DATASET_DIR, f'weights/{model_to_resume}/saved_models/{saved_model_to_resume}_trt')
-optim_saved_model_dir = convert_trt(saved_model_dir=saved_model_dir, output_saved_model_dir='', )
-# print(optim_saved_model_dir)
-print("conver model done. Nowing running test")
-out = {}
-model = tf.saved_model.load(saved_model_dir)
-# print(model.layers[0].get_weights()[0])
-out['original'] = speed_test('original', model, steps=100)
-model_int8 = tf.saved_model.load(optim_saved_model_dir)
-print(model_int8.trainable_variables)
-# print(model_int8.layers[0].get_weights()[0])
-out['int8'] = speed_test("int8", model_int8, steps=100)
-print("profile", out)
+if __name__ == '__main__':
+    saved_model_dir = os.path.join(DATASET_DIR, f'weights/{model_to_resume}/saved_models/{saved_model_to_resume}')
+    # optim_saved_model_dir = os.path.join(DATASET_DIR, f'weights/{model_to_resume}/saved_models/{saved_model_to_resume}_trt')
+    optim_saved_model_dir = convert_trt(saved_model_dir=saved_model_dir, output_saved_model_dir='', )
+    print(optim_saved_model_dir)
+    print("conver model done... Nowing running test")
+    out = {}
+    model = tf.saved_model.load(saved_model_dir)
+    out['original'] = speed_test('original', model, steps=100)
+    model_int8 = tf.saved_model.load(optim_saved_model_dir)
+    out['int8'] = speed_test("int8", model_int8, steps=100)
+    print("profile", out)

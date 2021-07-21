@@ -1,8 +1,8 @@
 import os
 import tensorflow as tf
 from tensorflow.python.data.experimental import AUTOTUNE
+from model.common import DATASET_DIR
 
-DATASET_DIR = "/data/DIV2K/"
 
 class DIV2K:
     def __init__(self,

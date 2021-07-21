@@ -6,6 +6,11 @@ import numpy as np
 import tensorflow as tf
 
 DATASET_DIR = "/data/DIV2K/"
+SCALE = 4
+model_to_resume = 'xlsr-16-x4_20210721-070106'
+saved_model_to_resume = '1626857315'
+
+
 DIV2K_RGB_MEAN = np.array([0.4488, 0.4371, 0.4040]) * 255
 
 

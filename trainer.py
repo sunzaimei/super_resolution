@@ -1,21 +1,11 @@
-import datetime
-import math
 import os
 import time
 import tensorflow as tf
-
 from model.common import evaluate
-# from model import srgan
-
-from tensorflow.keras.applications.vgg19 import preprocess_input
-from tensorflow.keras.losses import BinaryCrossentropy
-from tensorflow.keras.losses import MeanAbsoluteError
-from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import Mean
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 import tensorflow.python.ops.math_ops as math_ops
-from model.common import DATASET_DIR
 
 class TriCyclicLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
@@ -106,16 +96,14 @@ class Trainer:
                 print(
                     f'Epoch {int(step/100)}/{int(steps/100)} - {step}/{steps}: loss = {loss_value.numpy():.3f}, '
                     f'psnr = {psnr_value.numpy():3f} ({duration:.2f}s), '
-                    # f'score = {score_value.numpy():3f}, '
                     f'runtime_value = {runtime_value:3f}')
 
+                # If there is more time for training, can also evaluate the first 100 training samples psnr
                 # with self.train_summary_writer.as_default():
                 #     tf.summary.scalar('psnr', psnr_value_train, step=step/100)
 
                 with self.eval_summary_writer.as_default():
-                    # tf.summary.scalar('learning_rate', self.checkpoint.optimizer.lr.learning_rate, step=step / 100)
                     tf.summary.scalar('psnr', psnr_value, step=step/100)
-                    # tf.summary.scalar('score', score_value, step=step)
                     tf.summary.scalar('runtime', runtime_value, step=step/100)
 
                 if save_best_only and psnr_value <= ckpt.psnr:
@@ -149,16 +137,6 @@ class Trainer:
         if self.checkpoint_manager.latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint).expect_partial()
             print(f'Model restored from checkpoint at step {self.checkpoint.step.numpy()}.')
-
-class EdsrTrainer(Trainer):
-    def __init__(self,
-                 model,
-                 checkpoint_dir,
-                 learning_rate=PiecewiseConstantDecay(boundaries=[200000], values=[1e-4, 5e-5])):
-        super().__init__(model, loss=MeanAbsoluteError(), learning_rate=learning_rate, checkpoint_dir=checkpoint_dir)
-
-    def train(self, train_dataset, valid_dataset, steps=300000, evaluate_every=1000, save_best_only=True):
-        super().train(train_dataset, valid_dataset, steps, evaluate_every, save_best_only)
 
 
 class XlsrTrainer(Trainer):
