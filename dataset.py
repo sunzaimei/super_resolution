@@ -1,7 +1,9 @@
 import os
 import tensorflow as tf
 from tensorflow.python.data.experimental import AUTOTUNE
-from model.common import DATASET_DIR
+
+from model.common import convert_3d
+from settings import DATASET_DIR
 
 
 class DIV2K:
@@ -48,18 +50,20 @@ class DIV2K:
     def __len__(self):
         return len(self.image_ids)
 
-    def dataset(self, batch_size=16, repeat_count=None, random_transform=False):
+    def dataset(self, batch_size=16, repeat_count=None, random_transform=False, add_noise=False):
         """
         :param batch_size: default to 16 as indicated by xlsr paper
         :param repeat_count:  repeat iterating over images dataset, -1 or None means indefinitely
         :param random_transform:  random crop, flip, rotate, intensity scale
         :return: tf.data.Dataset
         """
-        ds = tf.data.Dataset.zip((self.lr_dataset(), self.hr_dataset()))
+        ds = tf.data.Dataset.zip((self.lr_dataset(), self.hr_dataset(), tf.data.Dataset.from_tensor_slices(self._lr_image_files())))
         if random_transform:
-            ds = ds.map(lambda lr, hr: random_crop(lr, hr, scale=self.scale), num_parallel_calls=AUTOTUNE)
+            ds = ds.map(lambda lr, hr, name: random_crop(lr, hr, name, hr_crop_size=32*self.scale, scale=self.scale), num_parallel_calls=AUTOTUNE)
             ds = ds.map(random_rotate, num_parallel_calls=AUTOTUNE)
             ds = ds.map(random_flip, num_parallel_calls=AUTOTUNE)
+        if add_noise:
+            ds = ds.map(random_guassian, num_parallel_calls=AUTOTUNE)
             # ds = ds.map(random_intensity, num_parallel_calls=AUTOTUNE)
         ds = ds.batch(batch_size)
         ds = ds.repeat(repeat_count)
@@ -75,7 +79,6 @@ class DIV2K:
         return ds
 
     def lr_dataset(self):
-
         ds = self._images_dataset(self._lr_image_files()).cache(self._lr_cache_file())
 
         if not os.path.exists(self._lr_cache_index()):
@@ -127,7 +130,7 @@ class DIV2K:
 #  Transformations
 # -----------------------------------------------------------
 
-def random_crop(lr_img, hr_img, hr_crop_size=96, scale=2):
+def random_crop(lr_img, hr_img, name, hr_crop_size=96, scale=2):
     lr_crop_size = hr_crop_size // scale
     lr_img_shape = tf.shape(lr_img)[:2]
 
@@ -140,20 +143,25 @@ def random_crop(lr_img, hr_img, hr_crop_size=96, scale=2):
     lr_img_cropped = lr_img[lr_h:lr_h + lr_crop_size, lr_w:lr_w + lr_crop_size]
     hr_img_cropped = hr_img[hr_h:hr_h + hr_crop_size, hr_w:hr_w + hr_crop_size]
 
-    return lr_img_cropped, hr_img_cropped
+    return lr_img_cropped, hr_img_cropped, name
 
 
-def random_flip(lr_img, hr_img):
+def random_flip(lr_img, hr_img, name):
     rn = tf.random.uniform(shape=(), maxval=1)
     return tf.cond(rn < 0.5,
-                   lambda: (lr_img, hr_img),
+                   lambda: (lr_img, hr_img, name),
                    lambda: (tf.image.flip_left_right(lr_img),
-                            tf.image.flip_left_right(hr_img)))
+                            tf.image.flip_left_right(hr_img), name))
 
 
-def random_rotate(lr_img, hr_img):
+def random_rotate(lr_img, hr_img, name):
     rn = tf.random.uniform(shape=(), maxval=4, dtype=tf.int32)
-    return tf.image.rot90(lr_img, rn), tf.image.rot90(hr_img, rn)
+    return tf.image.rot90(lr_img, rn), tf.image.rot90(hr_img, rn), name
+
+
+def random_guassian(lr_img, hr_img, name):
+    sigma = tf.random.uniform(shape=(), minval=0.01, maxval=0.1, dtype=tf.float32)
+    return convert_3d(lr_img, sigma=sigma), hr_img, name
 
 
 def random_intensity(lr_img, hr_img):
@@ -164,3 +172,7 @@ def random_intensity(lr_img, hr_img):
             (tf.equal(rn, 0), lambda: (Rescaling(1)(lr_img), Rescaling(1)(hr_img))),
             (tf.equal(rn, 1), lambda: (Rescaling(0.7)(lr_img), Rescaling(0.7)(hr_img))),
             (tf.equal(rn, 2), lambda: (Rescaling(0.5)(lr_img), Rescaling(0.5)(hr_img)))],)
+
+
+def resize(lr_img, hr_img):
+    return tf.image.resize(lr_img, [680, 428]), tf.image.resize(hr_img, [680, 428])

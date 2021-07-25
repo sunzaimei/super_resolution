@@ -1,38 +1,52 @@
 import tensorflow as tf
-# from tensorflow.python.keras.layers import Add, Conv2D, Input, Lambda, Activation, Concatenate
-# from tensorflow.python.keras.models import Model
 from tensorflow.keras.layers import Conv2D, Input, Lambda, Activation, Concatenate
 from tensorflow.keras.models import Model
 import tensorflow.keras.backend as K
+from settings import quantization
+import tensorflow.python.ops.gen_array_ops
 from model.common import normalize, denormalize
+import tensorflow_model_optimization as tfmot
 
 layers = tf.keras.layers
+
 
 class Xlsr:
     def __init__(self):
         self.initializer = tf.keras.initializers.HeNormal(seed=None)
         self.initializer.scale = 0.1
+        # self.scale = scale
+        # self.num_gblocks = num_gblocks
 
-    def xlsr(self, num_gblocks=3, scale=3):
-        x_in = Input(shape=(None, None, 3))
+    def xlsr(self, scale=3, num_gblocks=3):
+        if quantization:
+            x = Input(shape=(32, 32, 3))
+        else:
+            x = Input(shape=(None, None, 3))
+        # x_in = Input(shape=(None, None, 3))
         # x = Lambda(normalize)(x_in)
-        x = x_in
         conv_list = []
-        side_block = Conv2D(16, (3, 3), strides=(1, 1), padding="same", kernel_initializer=self.initializer)(x)
+        if scale == 3:
+            side_block = Conv2D(filters=16, kernel_size=(3, 3), strides=(1, 1), padding="same", kernel_initializer=self.initializer, name='side_block')(x)
+        elif scale == 4:
+            side_block = Conv2D(filters=24, kernel_size=(3, 3), strides=(1, 1), padding="same", kernel_initializer=self.initializer, name='side_block')(x)
         for _ in range(4):
             y = Conv2D(8, (3, 3), strides=(1, 1), padding="same", activation='relu',
                        kernel_initializer=self.initializer)(x)
             conv_list.append(y)
         main_block = Concatenate(axis=-1)(conv_list)
-        main_block = Conv2D(32, (1, 1), padding='same', kernel_initializer=self.initializer)(main_block)
+        main_block = Conv2D(filters=32, kernel_size=(1, 1), padding='same', kernel_initializer=self.initializer, name='1x1_first')(main_block)
         for i in range(num_gblocks):
             main_block = self.gblock(main_block)
-        block = Concatenate(axis=-1)([side_block, main_block])
-
-        block = Conv2D(32, (1, 1), padding='same', activation='relu', kernel_initializer=self.initializer)(block)
+        block = Concatenate(axis=-1, name='main_conc')([side_block, main_block])
+        if scale == 3:
+            block = Conv2D(32, (1, 1), padding='same', activation='relu', kernel_initializer=self.initializer)(block)
+        elif scale == 4:
+            block = Conv2D(48, (1, 1), padding='same', activation='relu', kernel_initializer=self.initializer)(block)
         block = Conv2D(3*scale**2, (3, 3), padding='same', kernel_initializer=self.initializer)(block)
-        depth2spatial_layer = Lambda(lambda x: tf.nn.depth_to_space(x, scale, data_format='NHWC', name=None))
-        block = depth2spatial_layer(block)
+        # depth2spatial_layer = Lambda(lambda x: tf.nn.depth_to_space(x, scale, data_format='NHWC', name='d2s'))
+        # block = depth2spatial_layer(block)
+        block = tf.nn.depth_to_space(block, scale, data_format='NHWC', name='d2s')
+        # Guassian noise
 
         def clip_relu(relu_input, max_value=255):
             return K.relu(relu_input, max_value=max_value)
@@ -40,7 +54,7 @@ class Xlsr:
         block = Lambda(function=clip_relu)(block)
         # block = Activation('relu')(block)
         # block = Lambda(denormalize)(block)
-        return Model(x_in, block, name="xlsr")
+        return Model(x, block, name="xlsr")
 
     def gblock(self, x_in, filters=8):
         """

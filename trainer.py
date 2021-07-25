@@ -42,6 +42,7 @@ class Trainer:
 
         self.now = None
         self.loss = loss
+        self.checkpoint_dir = checkpoint_dir
         self.checkpoint = tf.train.Checkpoint(step=tf.Variable(0), psnr=tf.Variable(-1.0),
                                               optimizer=Adam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999,
                                                              epsilon=1e-08), model=model)
@@ -54,6 +55,7 @@ class Trainer:
         eval_log_dir = os.path.join(checkpoint_dir, 'gradient_tape/eval')
         self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
         self.eval_summary_writer = tf.summary.create_file_writer(eval_log_dir)
+        # model.summary()
 
     @property
     def model(self):
@@ -75,8 +77,7 @@ class Trainer:
 
         self.now = time.perf_counter()
         tf.print(steps, ckpt.step.numpy())
-        for lr, hr in train_dataset.take(steps - ckpt.step.numpy()):
-            # tf.print(lr.shape, hr.shape)
+        for lr, hr, _ in train_dataset.take(steps - ckpt.step.numpy()):
             ckpt.step.assign_add(1)
             step = ckpt.step.numpy()
             loss = self.train_step(lr, hr)
@@ -130,7 +131,7 @@ class Trainer:
 
         return loss_value
 
-    def evaluate(self, dataset, save_result=False, checkpoint_dir=''):
+    def evaluate(self, dataset, save_result=False, checkpoint_dir='', post_process=False):
         return evaluate(self.checkpoint.model, dataset, save_result=save_result, checkpoint_dir=checkpoint_dir)
 
     def restore(self):
