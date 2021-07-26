@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.python.data.experimental import AUTOTUNE
 
 from model.common import convert_3d
-from settings import DATASET_DIR
+from config import DATASET_DIR
 
 
 class DIV2K:

@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 from dataset import DIV2K
-from settings import DATASET_DIR, SCALE, model_to_resume
+from config import DATASET_DIR, SCALE, model_to_resume, num_gblocks, num_groups
 from model.xlsr import Xlsr
 from trainer import XlsrTrainer
 
@@ -14,7 +14,7 @@ checkpoint_dir = os.path.join(DATASET_DIR, f'weights/{model_to_resume}')
 # imported.summary()
 
 xlsr = Xlsr()
-model = xlsr.xlsr(num_gblocks=3, scale=SCALE)
+model = xlsr.xlsr(num_gblocks=num_gblocks, scale=SCALE, num_groups=num_groups)
 trainer = XlsrTrainer(model=model, checkpoint_dir=checkpoint_dir)
 # trainer.restore()
 
@@ -31,4 +31,4 @@ if SCALE == 4:
     test_hr_dataset = DIV2K._images_dataset(test_hr_files)
     ds = tf.data.Dataset.zip((test_lr_dataset, test_hr_dataset, tf.data.Dataset.from_tensor_slices(test_lr_files))).batch(1)
     psnr, score, runtime = trainer.evaluate(ds, save_result=True, checkpoint_dir=checkpoint_dir)
-    print(f"task 2 psnr is {psnr}")
+    print(f"Task 2 psnr is {psnr}")

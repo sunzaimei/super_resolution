@@ -5,7 +5,7 @@ from dataset import DIV2K
 from model.xlsr import Xlsr
 from trainer import XlsrTrainer
 import os
-from settings import DATASET_DIR, SCALE, quantization
+from config import DATASET_DIR, SCALE, quantization, epoches, num_gblocks, num_groups
 import tensorflow as tf
 import tensorflow_model_optimization as tfmot
 
@@ -28,7 +28,7 @@ train_ds = train_loader.dataset(batch_size=16, random_transform=True, repeat_cou
 valid_ds = valid_loader.dataset(batch_size=16, random_transform=True, repeat_count=1, add_noise=add_noise)
 
 xlsr = Xlsr()
-model = xlsr.xlsr(num_gblocks=3, scale=SCALE)
+model = xlsr.xlsr(num_gblocks=num_gblocks, scale=SCALE, num_groups=num_groups)
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 if quantization:
     checkpoint_dir = os.path.join(DATASET_DIR, f'weights/xlsr-16-x{SCALE}_{current_time}_quantization')
@@ -40,8 +40,7 @@ else:
     trainer = XlsrTrainer(model=model, checkpoint_dir=checkpoint_dir)
 print(f'Model will be stored in checkpoint_dir: {checkpoint_dir}')
 
-# trainer.train(train_ds, valid_ds, steps=2000, evaluate_every=100, save_best_only=True)
-trainer.train(train_ds, valid_ds, steps=500000, evaluate_every=100, save_best_only=True)
+trainer.train(train_ds, valid_ds, steps=epoches*100, evaluate_every=100, save_best_only=True)
 
 # Restore from checkpoint with highest PSNR.
 trainer.restore()

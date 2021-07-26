@@ -4,7 +4,7 @@ from dataset import DIV2K
 from model.xlsr import Xlsr
 from trainer import XlsrTrainer
 import os
-from settings import DATASET_DIR, model_to_resume, SCALE
+from config import DATASET_DIR, model_to_resume, SCALE
 import tensorflow as tf
 import pathlib
 
