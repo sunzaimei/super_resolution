@@ -1,5 +1,7 @@
 # super_resolution
 
+## This repo aims to implement the super resolution algorithm from paper, and evaluate results on various dataset.
+
 report analysis is here: https://docs.google.com/presentation/d/1mRGRsFEkz3rmhFULSEvYm2XQU42ZaSXVJOvnAdOoVAA/edit?usp=sharing
 
 Pre-request: tensorflow-gpu 2.4, tensorflow_model_optimization 0.6.0
